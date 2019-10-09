@@ -28,8 +28,8 @@ inline T* reconstruct(T& target, CArgs... args)
 template <typename T>
 struct ReconstructorBase
 {
-	virtual ~ReconstructorBase(){};
-	virtual T* reconstruct(T&) = 0;
+	virtual ~ReconstructorBase() = default;
+	virtual T* reconstruct(T&)   = 0;
 };
 
 template <typename T, typename... Params>
@@ -37,11 +37,16 @@ struct ReconstructorImpl : ReconstructorBase<T>
 {
 	std::tuple<Params...> params;
 
-	template <typename... CArgs> // make_tuple perfect forward
-	explicit ReconstructorImpl(CArgs... args)
-		: params{std::make_tuple(std::forward<CArgs>(args)...)} {};
+	template <typename... CArgs>
+	explicit ReconstructorImpl(CArgs... args) noexcept
+		: params{std::move(std::make_tuple(std::forward<CArgs>(args)...))}
+	{
+	}
 
-	explicit ReconstructorImpl(const std::tuple<Params...>& rv_params) : params{rv_params} {};
+	explicit ReconstructorImpl(std::tuple<Params...> rv_params) noexcept
+		: params{std::move(rv_params)}
+	{
+	}
 
 	T* reconstruct(T& target) override
 	{
@@ -51,7 +56,7 @@ struct ReconstructorImpl : ReconstructorBase<T>
 protected:
 	inline T* reconstruct_impl(T& target, Params... args)
 	{
-		return ::reconstruct(target, args...);
+		return ::reconstruct(target, std::forward<Params>(args)...);
 	}
 
 	template <typename... Args>
@@ -69,13 +74,14 @@ struct ReconstructorHelper
 	template <typename... CArgs>
 	inline static ReconstructorBase<T>* create(CArgs... args)
 	{
-		return new ReconstructorImpl<T, CArgs...>{args...};
+		return new ReconstructorImpl<T, CArgs...>{std::forward<CArgs>(args)...};
 	}
 
 	template <typename... CArgs>
 	inline static std::pair<ReconstructorBase<T>*, T*> create_with_instance(CArgs... args)
 	{
-		return std::make_pair(new ReconstructorImpl<T, CArgs...>{args...}, new T{args...});
+		return std::make_pair(new ReconstructorImpl<T, CArgs...>{std::forward<CArgs>(args)...},
+							  new T{std::forward<CArgs>(args)...});
 	}
 };
 
@@ -86,19 +92,22 @@ class ReconstructableImpl : public T
 {
 public:
 	template <typename... CArgs>
-	explicit ReconstructableImpl(bool init, CArgs... args)
-		: T{args...}, m_reconstructor{({
-			using Reconstructor = ReconstructorImpl<ReconstructableImpl, bool, CArgs...>;
-			init ? new Reconstructor{false, args...} : nullptr;
-		})} {};
+	explicit ReconstructableImpl(bool reset, CArgs... args)
+		: T{std::forward<CArgs>(args)...}
+		, m_reconstructor{reset ? nullptr
+								: new ReconstructorImpl<ReconstructableImpl, bool, CArgs...>{
+										  true, std::forward<CArgs>(args)...}}
+	{
+	}
 
 	~ReconstructableImpl()
 	{
-		if (m_reconstructor != nullptr)
-		{
-			delete m_reconstructor;
-		}
+		delete m_reconstructor;
+		m_reconstructor = nullptr;
 	}
+
+	ReconstructableImpl(const ReconstructableImpl&) = default;
+	ReconstructableImpl& operator=(const ReconstructableImpl&) = default;
 
 	inline void reconstruct()
 	{
@@ -120,5 +129,8 @@ template <typename T>
 struct Reconstructable : ReconstructableImpl<T>
 {
 	template <typename... CArgs>
-	explicit Reconstructable(CArgs... args) : ReconstructableImpl<T>{true, args...} {};
+	explicit Reconstructable(CArgs... args)
+		: ReconstructableImpl<T>{false, std::forward<CArgs>(args)...}
+	{
+	}
 };

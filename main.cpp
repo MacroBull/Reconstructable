@@ -6,8 +6,12 @@
 
 struct NonCopyable
 {
-	NonCopyable(int a) : x{a}, y{a} {};
-	NonCopyable(int a, int b) : x{a}, y{b} {};
+	explicit NonCopyable(int a) : x{a}, y{a}
+	{
+	}
+	NonCopyable(int a, int b) : x{a}, y{b}
+	{
+	}
 
 	NonCopyable(const NonCopyable&) = delete;
 	NonCopyable& operator=(const NonCopyable&) = delete;

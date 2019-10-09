@@ -9,10 +9,10 @@ Copyright (c) 2019 Macrobull
 #include <tuple>
 #include <type_traits>
 
-//// hepler traits
+////// hepler traits
 
-template <bool P, typename T = void>
-using enable_if_t = typename std::enable_if<P, T>::type;
+//template <bool P, typename T = void>
+//using enable_if_t = typename std::enable_if<P, T>::type;
 
 //// reconstruct function
 
@@ -60,7 +60,7 @@ protected:
 	}
 
 	template <typename... Args>
-	inline enable_if_t<sizeof...(Args) != sizeof...(Params), T*>
+	inline typename std::enable_if<sizeof...(Args) != sizeof...(Params), T*>::type
 	reconstruct_impl(T& target, Args&&... args)
 	{
 		return reconstruct_impl(target, std::forward<Args>(args)...,
